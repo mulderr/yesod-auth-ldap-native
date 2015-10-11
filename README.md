@@ -4,6 +4,7 @@ Yesod LDAP authentication plugin using native Haskell Ldap.Client
 * does not depend on system libraries
 * service account bind
 * customizable
+* optional group membership verification
 
 ## Usage
 
