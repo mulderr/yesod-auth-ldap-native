@@ -1,7 +1,7 @@
 # yesod-auth-ldap-native
 Yesod LDAP authentication plugin using native Haskell Ldap.Client
 
-* does depend on system libraries
+* does not depend on system libraries
 * service account bind
 * customizable
 
