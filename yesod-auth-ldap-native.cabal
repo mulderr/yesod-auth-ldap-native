@@ -1,7 +1,7 @@
 name:                yesod-auth-ldap-native
 version:             0.1.0.0
 synopsis:            Yesod LDAP authentication plugin
-description:         Please see README.md
+description:         This package provides an LDAP authentication plugin for Yesod.
 homepage:            http://github.com/mulderr/yesod-auth-ldap-native
 license:             BSD3
 license-file:        LICENSE
