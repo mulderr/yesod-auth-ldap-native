@@ -45,7 +45,7 @@ In the example above user jdoe will only be successfully authenticated when:
 
 Fine control of the queries is available with `setUserQuery` and `setGroupQuery`.
 
-When testing or during initial configuration consider using 'setDebug' - set to 1 to enable. This will
+When testing or during initial configuration consider using `setDebug` - set to 1 to enable. This will
 give you exact error condition instead of "That is all we know". Never use it in production though as it
 may reveal sensitive information.
  
