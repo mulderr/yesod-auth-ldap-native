@@ -37,16 +37,16 @@ setHost (Plain "127.0.0.1")
        "ou=people,dc=example,dc=com"
 ```
 
- In the example above user jdoe will only be successfully authenticated when:
+In the example above user jdoe will only be successfully authenticated when:
 
- * service bind using the provided account is successful
- * exactly one entry with objectclass=posixAccount and uid=jdoe exists somewhere in ou=people,dc=example,dc=com
- * at least one group exists with cn=it and memberUid=jdoe in ou=group,dc=example,dc=com
+* service bind using the provided account is successful
+* exactly one entry with objectclass=posixAccount and uid=jdoe exists somewhere in ou=people,dc=example,dc=com
+* at least one group exists with cn=it and memberUid=jdoe in ou=group,dc=example,dc=com
 
- Fine control of the queries is available with `setUserQuery` and `setGroupQuery`.
+Fine control of the queries is available with `setUserQuery` and `setGroupQuery`.
 
- When testing or during initial configuration consider using 'setDebug' - set to 1 to enable. This will
- give you exact error condition instead of "That is all we know". Never use it in production though as it
- may reveal sensitive information.
+When testing or during initial configuration consider using 'setDebug' - set to 1 to enable. This will
+give you exact error condition instead of "That is all we know". Never use it in production though as it
+may reveal sensitive information.
  
- Refer to `ldap-client` documentation for details.
+Refer to `ldap-client` documentation for details.
