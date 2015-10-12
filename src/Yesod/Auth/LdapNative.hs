@@ -45,17 +45,14 @@ import Yesod.Auth
 import Yesod.Form
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception (SomeException, IOException, Handler (..), catches)
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Either
-import Data.Text (Text)
+import Control.Monad.Trans.Either (EitherT (..), left)
 import Data.List.NonEmpty (NonEmpty (..), (<|))
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Ldap.Client as L
 import qualified Ldap.Client.Bind as L
 import qualified Ldap.Client.Search as L
-import Ldap.Client 
-  (Ldap, Dn, Password (..), Filter (..), Mod, Search, Attr (..), AttrValue, Host, PortNumber, LdapError, SearchEntry (..))
 
 pluginName :: Text
 pluginName = "ldap"
@@ -111,7 +108,7 @@ mkUserQuery
   -> LdapAuthQuery
 mkUserQuery baseDn = LdapAuthQuery (L.Dn baseDn) (L.scope L.WholeSubtree)
   (\u -> L.And $
-       L.Attr "objectClass" := "posixAccount"
+       L.Attr "objectClass" L.:= "posixAccount"
     <| L.Attr "uid" L.:= T.encodeUtf8 u
     :| []
   ) []
@@ -125,17 +122,17 @@ mkGroupQuery
   -> LdapAuthQuery
 mkGroupQuery baseDn groupAttr groupName memberAttr = LdapAuthQuery (L.Dn baseDn) (L.scope L.WholeSubtree)
   (\u -> L.And $
-       L.Attr "objectClass" := "posixGroup"
-    <| L.Attr groupAttr := T.encodeUtf8 groupName
-    <| L.Attr memberAttr := T.encodeUtf8 u
+       L.Attr "objectClass" L.:= "posixGroup"
+    <| L.Attr groupAttr L.:= T.encodeUtf8 groupName
+    <| L.Attr memberAttr L.:= T.encodeUtf8 u
     :| []
   ) []
 
 
-setHost :: Host -> LdapAuthConf -> LdapAuthConf
+setHost :: L.Host -> LdapAuthConf -> LdapAuthConf
 setHost host conf = conf { host = host }
 
-setPort :: PortNumber -> LdapAuthConf -> LdapAuthConf
+setPort :: L.PortNumber -> LdapAuthConf -> LdapAuthConf
 setPort port conf = conf { port = port }
 
 setUserQuery :: LdapAuthQuery -> LdapAuthConf -> LdapAuthConf
@@ -144,6 +141,10 @@ setUserQuery q conf = conf { userQuery = q }
 setGroupQuery :: Maybe LdapAuthQuery -> LdapAuthConf -> LdapAuthConf
 setGroupQuery q conf = conf { groupQuery = q }
 
+-- | Enable exact error messages.
+--
+-- This will include LdapAuthError in alerts instead of a generic message.
+-- Do not use in production.
 setDebug :: Int -> LdapAuthConf -> LdapAuthConf
 setDebug level conf = conf { debug = level }
   
@@ -181,7 +182,7 @@ dispatchLdap conf = do
         True  -> setMessage $ [shamlet|<div.alert.alert-danger>Sign in failure. Error: #{show err}|]
         False -> setMessage $ [shamlet|<div.alert.alert-danger>Sign in failure. That is all we know right now. Try again later.|]
       lift $ redirect $ tp LoginR
-    Right (SearchEntry _ attrs) -> do
+    Right (L.SearchEntry _ attrs) -> do
       let extra = map f attrs
       lift $ setCredsRedirect $ Creds pluginName username extra
   
@@ -189,10 +190,10 @@ dispatchLdap conf = do
     f (L.Attr k, x : _) = (k, T.decodeUtf8 x)
     f (L.Attr k, _)     = (k, "")
 
-    ioHandler :: IOException -> IO (Either LdapAuthError SearchEntry)
+    ioHandler :: IOException -> IO (Either LdapAuthError L.SearchEntry)
     ioHandler e = return $ Left $ IOException e
 
-    catchAll :: SomeException -> IO (Either LdapAuthError SearchEntry)
+    catchAll :: SomeException -> IO (Either LdapAuthError L.SearchEntry)
     catchAll _ = return $ Left UnexpectedException
 
 
@@ -212,7 +213,7 @@ data LdapAuthError =
 
 
 -- | LDAP authentication.
-ldapLogin :: LdapAuthConf -> Text -> Text -> IO (Either LdapAuthError SearchEntry)
+ldapLogin :: LdapAuthConf -> Text -> Text -> IO (Either LdapAuthError L.SearchEntry)
 ldapLogin conf user pw = do
   res <- L.with (host conf) (port conf) $ \l ->
     
@@ -225,7 +226,7 @@ ldapLogin conf user pw = do
 
       -- user search
       eu <- lift $ query l (userQuery conf) user
-      se@(SearchEntry dn _) <- case eu of
+      se@(L.SearchEntry dn _) <- case eu of
         Right (x : []) -> return x
         Right [] -> left UserNotFoundError
         Right _  -> left MultipleUsersError
@@ -245,7 +246,7 @@ ldapLogin conf user pw = do
         Left err -> left $ ResponseError err
 
       -- user bind - verify password
-      eub <- lift $ L.bindEither l dn (Password (T.encodeUtf8 pw))
+      eub <- lift $ L.bindEither l dn (L.Password (T.encodeUtf8 pw))
       case eub of
         Right _ -> return ()
         Left _  -> left UserBindError
@@ -258,7 +259,7 @@ ldapLogin conf user pw = do
 
 
 -- | Search helper.
-query :: Ldap -> LdapAuthQuery -> Text -> IO (Either L.ResponseError [SearchEntry])
+query :: L.Ldap -> LdapAuthQuery -> Text -> IO (Either L.ResponseError [L.SearchEntry])
 query l (LdapAuthQuery baseDn mods filter attrs) login =
   L.searchEither l baseDn mods (filter login) attrs
 
@@ -280,7 +281,7 @@ defaultForm loginR = [whamlet|
 
 -- $use
 --
--- This module follows the service bind approach. I will bite if you ask for prefix/suffix stuff.
+-- This module follows the service bind approach.
 --
 -- Basic configuration in Foundation.hs:
 --
