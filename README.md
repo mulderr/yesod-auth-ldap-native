@@ -6,6 +6,9 @@ Yesod LDAP authentication plugin using native Haskell Ldap.Client
 * customizable
 * optional group membership verification
 
+## API Documentation
+Documentation is available on [hackage](https://hackage.haskell.org/package/yesod-auth-ldap-native).
+
 ## Usage
 
 This module follows the service bind approach. I will bite if you ask for prefix/suffix stuff.
