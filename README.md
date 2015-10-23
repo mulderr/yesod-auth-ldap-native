@@ -11,7 +11,11 @@ Documentation is available on [hackage](https://hackage.haskell.org/package/yeso
 
 ## Usage
 
-This module follows the service bind approach. I will bite if you ask for prefix/suffix stuff.
+There is more than one way to perform LDAP based authentication. The key thing to decide is how to map from usernames to DNs.
+
+This module follows the service bind approach where we bind with preconfigured credentials and run queries to find user DN and optionally verify group membership. After that we bind as user to verify password.
+
+Another common, although in some ways more limited, approach is defining DNs as templates eg. `uid=%s,ou=people,dc=example,dc=com`. This module does not support template based configuration. Please submit an issue or create a pull request if you'd like that.
 
 Basic configuration in `Foundation.hs`:
 ```haskell
@@ -22,14 +26,14 @@ ldapConf =
       "ou=people,dc=example,dc=com"
 ```
 
- And add __authLdap ldapConf__ to your __authPlugins__.
+And add __authLdap ldapConf__ to your __authPlugins__.
 
- For plain connection (only for testing!):
+For plain connection (only for testing!):
 ```haskell
 setHost (Plain "127.0.0.1")
 ```
 
- For additional group authentication use 'setGroupQuery':
+For additional group authentication use 'setGroupQuery':
 ```haskell
  ldapConf :: LdapAuthConf
  ldapConf = 
@@ -44,8 +48,8 @@ setHost (Plain "127.0.0.1")
 In the example above user jdoe will only be successfully authenticated when:
 
 * service bind using the provided account is successful
-* exactly one entry with objectclass=posixAccount and uid=jdoe exists somewhere in ou=people,dc=example,dc=com
-* at least one group exists with cn=it and memberUid=jdoe in ou=group,dc=example,dc=com
+* exactly one entry with `objectclass=posixAccount` and `uid=jdoe` exists somewhere in `ou=people,dc=example,dc=com`
+* at least one group exists with `cn=it` and `memberUid=jdoe` in `ou=group,dc=example,dc=com`
 
 Fine control of the queries is available with `setUserQuery` and `setGroupQuery`.
 
