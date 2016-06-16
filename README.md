@@ -17,9 +17,9 @@ Another common, although in some ways more limited, approach is defining DNs as 
 Basic configuration in `Foundation.hs`:
 ```haskell
 ldapConf :: LdapAuthConf
-ldapConf = 
+ldapConf =
     setHost (Secure "127.0.0.1") $ setPort 636
-  $ mkLdapConf "cn=Manager,dc=example,dc=com" "v3ryS33kret"
+  $ mkLdapConf (Just ("cn=Manager,dc=example,dc=com", "v3ryS33kret"))
       "ou=people,dc=example,dc=com"
 ```
 
@@ -35,12 +35,11 @@ setHost (Plain "127.0.0.1")
 For additional group authentication use `setGroupQuery`:
 ```haskell
  ldapConf :: LdapAuthConf
- ldapConf = 
+ ldapConf =
      setGroupQuery (Just $ mkGroupQuery
        "ou=group,dc=example,dc=com" "cn" "it" "memberUid")
    $ setHost (Secure "127.0.0.1") $ setPort 636
-   $ mkLdapConf "cn=yourapp,ou=services,dc=example,dc=com"
-       "v3ryS33kret"
+   $ mkLdapConf (Just ("cn=yourapp,ou=services,dc=example,dc=com", "v3ryS33kret"))
        "ou=people,dc=example,dc=com"
 ```
 

@@ -17,17 +17,18 @@
 ----------------------------------------------------------------------------
 
 module Yesod.Auth.LdapNative
-  ( 
+  (
   -- * Usage
   -- $use
 
   -- * Plugin Configuration
     authLdap
   , authLdapWithForm
-  
+
   -- * LDAP Configuration
   , LdapAuthConf
   , LdapAuthQuery (..)
+  , LdapCreds (..)
   , mkLdapConf
   , mkGroupQuery
   , setHost
@@ -61,22 +62,27 @@ loginRoute :: AuthRoute
 loginRoute = PluginR pluginName ["login"]
 
 -- | LDAP configuration.
--- 
+--
 -- Details hidden on purpose.
 -- Use 'mkLdapConf' to create default config and functions below to adjust to taste.
 data LdapAuthConf = LdapAuthConf
   -- connection
   { host   :: L.Host
   , port   :: L.PortNumber
-  , bindDn :: L.Dn
-  , bindPw :: L.Password
-  
+  , bindCreds :: Maybe LdapCreds
+
   -- queries
   , userQuery  :: LdapAuthQuery
   , groupQuery :: Maybe LdapAuthQuery
 
   -- other
   , debug  :: Int
+  }
+
+-- | LDAP dn and password
+data LdapCreds = LdapCreds
+  { lcDn :: L.Dn
+  , lcPw :: L.Password
   }
 
 -- | Query parameters.
@@ -86,21 +92,19 @@ data LdapAuthQuery = LdapAuthQuery L.Dn (L.Mod L.Search) (Text -> L.Filter) [L.A
 
 -- | Default LDAP configuration.
 mkLdapConf
-  :: Text     -- ^ bindDn
-  -> Text     -- ^ bindPw
+  :: Maybe (Text, Text)     -- ^ bindDn and bindPw
   -> Text     -- ^ user query baseDn
   -> LdapAuthConf
-mkLdapConf bindDn bindPw baseDn = LdapAuthConf
+mkLdapConf mbindc baseDn = LdapAuthConf
   { host   = L.Secure "localhost"
   , port   = 636
-  , bindDn = L.Dn bindDn
-  , bindPw = L.Password (T.encodeUtf8 bindPw)
-
+  , bindCreds = (\(dn,p) -> LdapCreds (L.Dn dn) (L.Password $ T.encodeUtf8 p)) <$> mbindc
   , userQuery  = mkUserQuery baseDn
   , groupQuery = Nothing
 
   , debug = 0
   }
+-- (Just (bindDn,bindPw))
 
 -- | Default LDAP user query.
 mkUserQuery
@@ -147,7 +151,7 @@ setGroupQuery q conf = conf { groupQuery = q }
 -- Do not use in production.
 setDebug :: Int -> LdapAuthConf -> LdapAuthConf
 setDebug level conf = conf { debug = level }
-  
+
 
 authLdap :: YesodAuth m => LdapAuthConf -> AuthPlugin m
 authLdap conf = authLdapWithForm conf defaultForm
@@ -185,7 +189,7 @@ dispatchLdap conf = do
     Right (L.SearchEntry _ attrs) -> do
       let extra = map f attrs
       lift $ setCredsRedirect $ Creds pluginName username extra
-  
+
   where
     f (L.Attr k, x : _) = (k, T.decodeUtf8 x)
     f (L.Attr k, _)     = (k, "")
@@ -216,10 +220,12 @@ data LdapAuthError =
 ldapLogin :: LdapAuthConf -> Text -> Text -> IO (Either LdapAuthError L.SearchEntry)
 ldapLogin conf user pw = do
   res <- L.with (host conf) (port conf) $ \l ->
-    
+
     runEitherT $ do
       -- service bind
-      esb <- lift $ L.bindEither l (bindDn conf) (bindPw conf)
+      esb <- case bindCreds conf of
+              Just c -> lift $ L.bindEither l (lcDn c) (lcPw c)
+              Nothing -> return $ Right ()
       case esb of
         Right _ -> return ()
         Left _ -> left ServiceBindError
@@ -239,7 +245,7 @@ ldapLogin conf user pw = do
               Nothing -> return $ Right []
       case eg of
         -- either becase groupQuery was not provided or returned nothing
-        Right [] -> case mg of 
+        Right [] -> case mg of
                       Just _  -> left GroupMembershipError
                       Nothing -> return ()
         Right _  -> return ()
@@ -252,7 +258,6 @@ ldapLogin conf user pw = do
         Left _  -> left UserBindError
 
       return se
-
   case res of
     Left err -> return $ Left $ LdapError err
     Right x -> return x
@@ -286,9 +291,9 @@ defaultForm loginR = [whamlet|
 -- Basic configuration in Foundation.hs:
 --
 -- > ldapConf :: LdapAuthConf
--- > ldapConf = 
+-- > ldapConf =
 -- >     setHost (Secure "127.0.0.1") $ setPort 636
--- >   $ mkLdapConf "cn=Manager,dc=example,dc=com" "v3ryS33kret" "ou=people,dc=example,dc=com"
+-- >   $ mkLdapConf (Just ("cn=Manager,dc=example,dc=com", "v3ryS33kret")) "ou=people,dc=example,dc=com"
 --
 -- And add __authLdap ldapConf__ to your __authPlugins__.
 --
@@ -299,10 +304,10 @@ defaultForm loginR = [whamlet|
 -- For additional group authentication use 'setGroupQuery':
 --
 -- > ldapConf :: LdapAuthConf
--- > ldapConf = 
+-- > ldapConf =
 -- >     setGroupQuery (Just $ mkGroupQuery "ou=group,dc=example,dc=com" "cn" "it" "memberUid")
 -- >   $ setHost (Secure "127.0.0.1") $ setPort 636
--- >   $ mkLdapConf "cn=yourapp,ou=services,dc=example,dc=com" "v3ryS33kret" "ou=people,dc=example,dc=com"
+-- >   $ mkLdapConf (Just ("cn=yourapp,ou=services,dc=example,dc=com", "v3ryS33kret")) "ou=people,dc=example,dc=com"
 --
 -- In the example above user jdoe will only be successfully authenticated when:
 --
@@ -315,5 +320,5 @@ defaultForm loginR = [whamlet|
 -- When testing or during initial configuration consider using 'setDebug' - set to 1 to enable. This will
 -- give you exact error condition instead of "That is all we know". Never use it in production though as it
 -- may reveal sensitive information.
--- 
+--
 -- Refer to 'ldap-client' documentation for details.
